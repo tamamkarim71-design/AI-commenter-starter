@@ -1,18 +1,62 @@
 import {Request, Response, NextFunction} from 'express';
+import fetchData from '../../lib/fetchData';
 
 const commentPost = async (
-  req: Request<{}, {}, {text: string}>,
+  req: Request<{}, {}, {text: string; tone?: string}>,
   res: Response<{response: string}>,
   next: NextFunction
 ) => {
   try {
-    try {
-      // TODO: Generate a response to a Youtube comment
-      // Instead of using openai library, use fetchData to make a post request to the server.
-      // see https://platform.openai.com/docs/api-reference/chat/create for more information
-      // You don't need an API key if you put the URL provided in Oma to .env.sample and Metropolia VPN
-      // Example: instad of https://api.openai.com/v1/chat/completions use process.env.OPENAI_API_URL + '/v1/chat/completions'
-    } catch (error) {
+    const {text, tone = 'friendly'} = req.body;
+
+    const prompt = `Reply to this YouTube comment in a ${tone} tone.
+
+Comment:
+"${text}"
+
+Write only one short reply.`;
+
+    console.log('POSTMAN BODY:', req.body);
+    console.log('PROMPT SENT TO AI:', prompt);
+
+    const apiUrl = process.env.OPENAI_API_URL;
+
+    if (!apiUrl) {
+      throw new Error('OPENAI_API_URL is not configured');
+    }
+
+    const openAIUrl = `${apiUrl}/v1/chat/completions`;
+
+    console.log('API URL:', openAIUrl);
+
+    const data = await fetchData<{
+      choices?: Array<{message?: {content?: string}}>
+    }>(
+      openAIUrl,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+        }),
+      }
+    );
+
+    const responseText =
+      data.choices?.[0]?.message?.content ?? 'No response generated.';
+
+    res.json({
+      response: responseText,
+    });
+  } catch (error) {
     next(error);
   }
 };
